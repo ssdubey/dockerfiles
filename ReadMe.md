@@ -1,19 +1,65 @@
-## Steps to set-up the private IPFS network:
+## Steps to create a private ipfs network with docker container:
 
-1. Run `docker-compose up` from the root directory (`docker-compose build` if further modifying the dockerfile)
-2. Find the docker image hash of the master and workers.
-3. Start and Run the containers with those images. (Master should be run only once and worker can be run as many times as required. All the workers will attach with the same master to create the cluster) 
-  ```
-      docker run -it <image hash> bash
-  ```
- 
-4. For worker nodes, give executable permission to the script already available in the container and run it:
+### Creating Raft leader:
+1. Build the attached dockerfile to create the docker image.
+2. Run the interactive session of docker container:
 ```
-    chmod +x script_worker
-    ./script_worker
+    docker run -it <image name>
 ```
-5. Run `ps` on master and worker nodes to check if ipfs and the service daemons are running.
-6. Logs are generated in the current folder of the container in the files: `ipfs_daemon.out` and `ipfs_service_daemon.out`
+3. Start IPFS:
+```
+    ipfs init
+```
+4. Start IPFS daemon:
+```
+    ipfs daemon
+```
+5. Start a new shell for the running container:
+```
+    docker exec -it <container_id>
+```
+6. Start the IPFS cluster service:
+```
+    ipfs-cluster-service init
+```
+7. Open the `service.json` file created in the previous step and copy the secret key (4th parameter in the 'cluster' tag)
+8. Run the ipfs-cluster-service daemon:
+```
+    ipfs-cluster-service daemon
+```
 
-There could be some errors shown in the log, but they do not hinder the private network setup. These errors are related to localhost, and the exact reason are yet to debug. 
-If instead of running the script, the daemons are started using those commands one by one, this error does not show up. 
+At this step the IPFS raft leader is ready. Now we will prepare a peer node in almost similar fashion.
+
+### Creating peer node:
+Repeat steps 2 to 5
+6. Set the secret key variable with the value copied from the raft leader:
+```
+    export CLUSTER_SECRET=<secret key>
+```
+7. Start the IPFS cluster service:
+```
+    ipfs-cluster-service init
+```
+This step will create a service.json file. It can be verified that the secret key for in this file is same as raft leader.
+8. Run the ipfs-cluster-service daemon with the bootstrap address of the raft leader (following is an eg.):
+```
+    ipfs-cluster-service daemon --bootstrap /ip4/172.17.0.10/tcp/9096/ipfs/QmYPE4CugC5tKf7okTpF94YYK9t3SFwP9juaPZ1JFPCQMG
+```
+
+At this point shell of both the peers will display the Current Raft Leader and the peer added to the raft through their Hashes.
+
+### Using the cluster
+A new executable shell for both the container can be opened as shown in step 5 for experimentation.
+
+Check the peers in the cluster:
+```
+    ipfs-cluster-ctl peers ls
+```
+Create a new file and add it to the cluster:
+```
+    ipfs-cluster-ctl add file.txt
+```
+Check all the added (pinned) items in the cluster:
+```
+    ipfs-cluster-ctl pin ls
+```
